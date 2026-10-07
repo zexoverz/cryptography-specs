@@ -50,4 +50,48 @@ def PublicKey.fromBytes (b : ByteArray) : Except XmssError PublicKey :=
     -- Unreachable: a buffer of exactly `PUB_KEY_SIZE` has room for both.
     | _, _ => .error (.badPublicKeySize b.size)
 
+/-! ## Digest sequences
+
+The chain values and the authentication path are both runs of digests, laid
+down back to back. -/
+
+/-- Concatenate a run of digests, in order. -/
+def packDigests {k : Nat} (ds : Vector Digest k) : ByteArray :=
+  ds.foldl (fun acc d => acc ++ packBytes d) ByteArray.empty
+
+/-- Read `k` consecutive digests out of `b`, starting at `offset`.
+
+Returns nothing when the buffer has no room for all of them. -/
+def unpackDigests? (k : Nat) (b : ByteArray) (offset : Nat) :
+    Option (Vector Digest k) :=
+  -- Digest `i` occupies `[offset + i * 16, offset + (i + 1) * 16)`.
+  (Vector.range k).mapM fun i => unpackBytes? DIGEST_LEN b (offset + i * DIGEST_LEN)
+
+/-! ## Signature -/
+
+/-- The SSZ encoding of a signature.
+
+The 42 chain values, then the randomizer, then the 32 siblings. -/
+def Signature.toBytes (sig : Signature) : ByteArray :=
+  packDigests sig.chainElements
+    ++ packBytes sig.randomness
+    ++ packDigests sig.merklePath
+
+/-- Read a signature out of exactly `SIG_SIZE` bytes.
+
+Fails with `badSignatureSize` on any other length. -/
+def Signature.fromBytes (b : ByteArray) : Except XmssError Signature :=
+  if b.size ≠ SIG_SIZE then
+    .error (.badSignatureSize b.size)
+  else
+    -- The randomizer starts where the chain values end, and the path starts
+    -- where the randomizer ends.
+    match unpackDigests? V b 0,
+          unpackBytes? RANDOMNESS_LEN b (V * DIGEST_LEN),
+          unpackDigests? LOG_LIFETIME b WOTS_SIG_SIZE with
+    | some chainElements, some randomness, some merklePath =>
+        .ok { chainElements, randomness, merklePath }
+    -- Unreachable: a buffer of exactly `SIG_SIZE` has room for all three.
+    | _, _, _ => .error (.badSignatureSize b.size)
+
 end EthCryptographySpecs.Xmss
