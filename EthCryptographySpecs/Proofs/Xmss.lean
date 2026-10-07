@@ -9,6 +9,7 @@ import EthCryptographySpecs.Proofs.Xmss.KeyGen
 import EthCryptographySpecs.Proofs.Xmss.Sign
 import EthCryptographySpecs.Proofs.Xmss.Correctness
 import EthCryptographySpecs.Proofs.Xmss.Blake2s
+import EthCryptographySpecs.Proofs.Xmss.Serialization
 
 /-!
 # `EthCryptographySpecs.Proofs.Xmss`
